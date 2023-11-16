@@ -22,6 +22,8 @@ from collections import namedtuple
 import py_helper as ph
 from py_helper import DebugMode, DbgMsg, Msg, CmdLineMode, Taggable
 
+import spidev
+import smbus
 import gpiozero as gpz
 from gpiozero import *
 
@@ -57,8 +59,57 @@ op_declinate = "declinate"
 # Classes
 #
 
-class Motor:
+class ProductInfo(Taggable):
+	"""Product Info Class"""
+
+	part_number = ""
+	product_description = ""
+	product_url = ""
+	documentation = ""
+
+	def __init__(self, partnumber="", description="", url="", documentation=""):
+		"""Init Product Info Instance"""
+
+		super().__init__()
+
+		self.part_number = partnumber
+		self.product_description = description
+		self.product_url = url
+		self.documentation = documentation
+
+	def get_specs_sv(self, specs, seperator=","):
+		"""Get Device specs from one line INI as a CSV"""
+
+		spec_list = specs.split(seperator)
+
+	def get_specs_data(self, specs):
+		"""Get device specs from one line INI as a Dictionary"""
+
+		spec_dict = dict()
+
+		if type(specs) is str:
+			specs = self.get_specs_sv(specs)
+		elif type(specs) is list:
+			pass
+
+		for spec in specs:
+			field, value = self.get_specs_sv(spec,":")
+
+			spec_dict[field] = value
+
+		return spec_dict
+
+	def config(self, config_section):
+		"""Extract Product Info From INI"""
+
+		self.product_number = config_section.get("product_number", fallback="")
+		self.product_description = config_section.get("product_description", fallback="")
+		self.product_url = config_section.get("product_url", fallback="")
+		self.documentation config_section.get("documentation", fallback="")
+
+class Motor(ProductInfo):
 	name = ""
+	description=""
 	motor_type = "dc"
 	polarity = 1
 	motor_obj = None
@@ -67,6 +118,7 @@ class Motor:
 
 	def __init__(self, name, motor, operations=None, motor_type="dc", polarity=1):
 		self.name = name
+		self.description = ""
 		self.motor_obj = motor
 		self.motor_type = motor_type
 		self.polarity = polarity
@@ -130,26 +182,28 @@ class Motor:
 
 		return config_ops
 
-	def get_dc_motor_definition(self, parameters):
+	def get_dc_motor_definition(self, specs):
 		"""Get DC Motor Definition From Data"""
 
-		self.motor_type = parameters["type"]
-		self.polarity = int(parameters["polarity"])
+		self.motor_type = specs["type"]
+		self.polarity = int(specs["polarity"])
 
 	def get_motor_definition(self, motor_definition):
 		"""Get Motor Definiton and Call Correct Def Conversion"""
 
-		fields = motor_definition.split(",")
+		specs = self.get_specs_data(motor_definition)
 
-		parameters = dict()
+		if "description" in specs:
+			self.description = specs["description"]
 
-		for field in fields:
-			name,value = field.split(":")
-
-			parameters[name] = value
-
-		if parameters["type"] == "dc":
-			self.get_dc_motor_definition(parameters)
+		if specs["type"] == "dc":
+			self.get_dc_motor_definition(specs)
+		elif specs["type"] == "ac":
+			pass
+		elif specs["type"] == "stepper":
+			pass
+		elif specs["type"] == "servo":
+			pass
 
 	def config(self, config_section):
 		"""Configure motor using INI Section"""
@@ -163,7 +217,7 @@ class Motor:
 			ops = self.get_motor_operations_from_config(config_section)
 			self.get_operations_for_motor(ops)
 
-class MotorController(Taggable):
+class MotorController(ProductInfo):
 	"""Motor Controller"""
 
 	name = "motorcontroller"
@@ -351,7 +405,111 @@ class MotorController(Taggable):
 		for motor in self.motors:
 			motor.config(config_section)
 
-class Camera(Taggable):
+class AddressableRGBILEDModule(ProductInfo):
+	"""Addressable RGBI LED Module"""
+
+	name = "AddressableRGBILEDModule"
+	description = "Addressable RGBI LED Module"
+	color_range = (0, 255)
+	intensity_range = (0,31)
+	leds = None
+
+	def __init__(self, name, description, config_section=None):
+		"""Initialize Led Module Instance"""
+
+		self.name = name
+		self.description = description
+
+		if config_section is not None:
+			self.config(config_section)
+
+	def within_range(self, value, value_range):
+		"""Check to see if Value is within Range"""
+
+		if value < value_range[0]:
+			value = value_range[0]
+
+		if value > value_range[1]:
+			value = value_range[1]
+
+		return value
+
+	def SetColor(self, num, r, g, b):
+		"""Set LED Color"""
+
+		self.leds[num][0] = self.within(r, self.color_range)
+		self.leds[num][1] = self.within(g, self.color_range)
+		self.leds[num][2] = self.within(b, self.color_range)
+
+	def SetColorRGB(self, num, rgb):
+		"""Set Color By RGB Triple"""
+
+		r,g,b = rgb
+
+		self.SetColor(num, r, g, b)
+
+	def SetAllColor(self, r, g, b):
+		"""Set All LEDs to One Color"""
+
+		for num in range(0,len(self.leds)):
+			self.SetColor(r, g, b)
+
+	def SetAllColorRGB(self, rgb):
+		"""Set All LEDs to One Color RGB"""
+
+		r,g,b = rgb
+
+		self.SetAllColor(r, g, b)
+
+	def SetIntensity(self, num, intensity):
+		"""Set LED Intensity/Brightness"""
+
+		self.leds[num][3] = self.within(intensity, self.intensity_range)
+
+	def SetAllIntensity(self, intensity):
+		"""Set all LEDs to one Intensity/Brightness"""
+
+		for num in range(0,len(self.leds)):
+			self.SetIntensity(num, intensity)
+
+	def SetLed(self, num, r, g, b, intensity):
+		"""Set LED Color and Intensity"""
+
+		self.SetColor(num, r, g, b)
+		self.SetIntensity(num, intensity)
+
+	def SetLedRGB(self, num, rgb, intensity):
+		"""Set LED Color by RGB Tuple and Intensity/Brightness"""
+
+		r,g,b = rgb
+
+		self.SetColor(num, r, g, b)
+		self.SetIntensity(num, intensity)
+
+	def SetAll(self, r, g, b, intensity):
+		"""Set All LED's To The Same Color and Intensity/Brightness"""
+
+		for num in range(0,len(self.leds)):
+			self.SetLed(num, r, g, b, intensity)
+
+	def SetAllRGB(self, rgb, intensity):
+		"""Set ALl LED's to The Same RGB Color and Intensity/Brightness"""
+
+		r,g,b = rgb
+
+		self.SetAll(r, g, b, intensity)
+
+	def WriteLEDs(self):
+		"""Write Out LED Data"""
+
+		pass
+
+	def config(self,config_section):
+		"""Config Device From INI Section"""
+
+		pass
+
+class Camera(ProductInfo):
 	"""Camera Class"""
 
 	def __init__(self):
@@ -359,7 +517,7 @@ class Camera(Taggable):
 
 		pass
 
-class Sensor(Taggable):
+class Sensor(ProductInfo):
 	"""Sensor Class"""
 
 	def __init__(self):
@@ -367,7 +525,7 @@ class Sensor(Taggable):
 
 		pass
 
-class Feature(Taggable):
+class Feature(ProductInfo):
 	"""Feature Class"""
 
 	def __init__(self):
@@ -375,7 +533,7 @@ class Feature(Taggable):
 
 		pass
 
-class Robot(Taggable):
+class Robot(ProductInfo):
 	"""Robot Class"""
 
 	name = None
