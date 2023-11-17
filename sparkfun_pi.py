@@ -104,6 +104,11 @@ class SparkfunMotorDriver(MotorController):
 	PWMB = 6
 	STBY = 9
 
+	# 3 x GND
+	# VM Pin
+	# VCC
+	# A01, A02, B02, B01?
+
 	pins = {
 		"AIN1": AIN1,
 		"AIN2": AIN2,

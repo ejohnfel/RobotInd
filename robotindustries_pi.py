@@ -107,6 +107,52 @@ class ProductInfo(Taggable):
 		self.product_url = config_section.get("product_url", fallback="")
 		self.documentation config_section.get("documentation", fallback="")
 
+class SimpleGPIODevice(ProductInfo):
+	"""Simple GPIO Device"""
+
+	name = "simplegpiodevice"
+	description = "Simple GPIO Device"
+	pin = 0
+	pin_read = True
+	pin_write = True
+
+	def __init__(self, name, description, pin, pin_read=True, pin_write=True, config_section=None):
+		"""Initialize Instance of Simple GPIO Device"""
+
+		self.name = name
+		self.description = description
+		self.pin = pin
+		self.pin_read = pin_read
+		self.pin_write = pin_write
+
+		if config_section is not None:
+			self.config(config_section)
+
+	def read(self):
+		"""Read from PIN"""
+
+		value = None
+
+		if self.pin_read:
+			value = 0
+
+		return value
+
+	def write(self, value = None):
+		"""Write to PIN"""
+
+		if self.pin_write:
+			pass
+
+	def config(self, section):
+		"""Config Device from INI Section"""
+
+		self.name = section.get("name", fallback=self.name)
+		self.description = section.get("description", fallback=self.description)
+
+		self.pin_read = section.getboolean("pin_read", fallback=self.pin_read)
+		self.pin_write = section.getboolean("pin_write", fallback=self.pin_write)
+
 class Motor(ProductInfo):
 	name = ""
 	description=""

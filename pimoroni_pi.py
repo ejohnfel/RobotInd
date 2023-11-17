@@ -23,6 +23,23 @@ from gpiozero import *
 # Classes
 #
 
+class PimoroniLipoShim(SimpleGPIODevice):
+	"""Pimoroni Lipo Shim"""
+
+	def __init__(self, name, description, config_section=None):
+		"""Init Lipo Shim Instance"""
+
+		# GPIO 4, PIN 7 not sure what this is in BCM
+		super().__init__(name, description, 7, False, True, config_section=config_section)
+
+		if config_section is not None:
+			self.config(config_section)
+
+	def config(self, config_section):
+		"""Config Instance From INI Section"""
+
+		pass
+
 #
 # Functions
 #
