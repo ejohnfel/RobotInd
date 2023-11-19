@@ -5,9 +5,16 @@
 import py_helper as ph
 from py_helper import DebugMode, CmdLineMode, DbgMsg, Msg, Taggable
 
+# SPI/I2C Libs
+import spidev
+import smbus
+
+# PI GPIO
+import pigpio
+
 # GPIO Zero Stuff
-import gpiozero as gpz
-from gpiozero import *
+#import gpiozero as gpz
+#from gpiozero import *
 
 # Microcontroller/Board Control/Circuit Playground Stuff
 import board

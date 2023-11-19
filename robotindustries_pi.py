@@ -12,7 +12,6 @@ import os
 import io
 import re
 import subprocess
-import importlib
 
 from collections import namedtuple
 
@@ -22,10 +21,15 @@ from collections import namedtuple
 import py_helper as ph
 from py_helper import DebugMode, DbgMsg, Msg, CmdLineMode, Taggable
 
+# SPI/I2C Libs
 import spidev
 import smbus
-import gpiozero as gpz
-from gpiozero import *
+
+# PI GPIO
+import pigpio
+
+#import gpiozero as gpz
+#from gpiozero import *
 
 #
 # Definitions
