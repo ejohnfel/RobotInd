@@ -1,0 +1,8 @@
+Flask==3.0.0
+Flask-Script==2.0.6
+gpiozero==1.6.2
+pigpio==1.78
+py-helper-mod==0.0.55
+requests==2.25.1
+spidev==3.5
+
