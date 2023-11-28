@@ -35,9 +35,9 @@ class adafruit_motor_control(MotorController):
 		super().__init__(name, description, MotorKit())
 
 		m1 = Motor("m1", self.controller.motor1, None, "dc", 1)
-		m2 = Motor("m2", self.controller.motor1, None, "dc", 1)
-		m3 = Motor("m3", self.controller.motor1, None, "dc", 1)
-		m4 = Motor("m4", self.controller.motor1, None, "dc", 1)
+		m2 = Motor("m2", self.controller.motor2, None, "dc", 1)
+		m3 = Motor("m3", self.controller.motor3, None, "dc", 1)
+		m4 = Motor("m4", self.controller.motor4, None, "dc", 1)
 
 		self.motors.extend([ m1, m2, m3, m4 ])
 

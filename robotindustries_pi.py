@@ -86,6 +86,8 @@ class ProductInfo(Taggable):
 
 		spec_list = specs.split(seperator)
 
+		return spec_list
+
 	def get_specs_data(self, specs):
 		"""Get device specs from one line INI as a Dictionary"""
 
@@ -109,7 +111,7 @@ class ProductInfo(Taggable):
 		self.product_number = config_section.get("product_number", fallback="")
 		self.product_description = config_section.get("product_description", fallback="")
 		self.product_url = config_section.get("product_url", fallback="")
-		self.documentation config_section.get("documentation", fallback="")
+		self.documentation = config_section.get("documentation", fallback="")
 
 class SimpleGPIODevice(ProductInfo):
 	"""Simple GPIO Device"""
@@ -186,7 +188,7 @@ class Motor(ProductInfo):
 		"""Set Motor Speed"""
 
 		if self.motor_obj is not None:
-			self.motor_obj.throttle = self.speed = speed
+			self.motor_obj.throttle = self.speed = (speed * self.polarity)
 
 	def set_operation(self, op):
 		"""Set Valid Operations"""
@@ -625,11 +627,11 @@ class Robot(ProductInfo):
 		elif isinstance(Feature):
 			pass
 
-	def run(self,args=None,kwargs=None):
+	def run(self, *args, **kwargs):
 		"""Execute Run Loop"""
 
 		if self.runloop is not None:
-			self.runloop()
+			self.runloop(self, args, kwargs)
 
 	def get_element_section(self, section_label):
 		"""Get Element Config Section From INI"""

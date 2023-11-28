@@ -16,14 +16,19 @@ import py_helper as ph
 
 # Froms
 
+from signal import pause
 from datetime import datetime
 
 # Py Helper Stoof
 import py_helper as ph
 from py_helper import DebugMode, CmdLineMode, DbgMsg, Msg
 
+# Electronics Stuff
+
 import gpiozero as pgz
 from gpiozero import *
+
+from bluedot import BlueDot
 
 # Robot Industries
 from robotindustries_pi import *
@@ -39,15 +44,124 @@ config_file = "arwen.ini"
 parser = None
 config = None
 
+# Control Variables
+
+running = True
+robot = None
+
 #
 # Functions
 #
 
-def run(args=None,kwargs=None):
-	"""Run: Robot Mode"""
+def exit_press(pos):
+	"""Blue Dot Exit Press Handler"""
+	global running
 
-	if DebugMode():
-		breakpoint()
+	DbgMsg("Exiting...")
+
+	running = False
+
+def led_press(pos):
+	"""LED Toggle"""
+
+	pass
+
+def forward_press(pos):
+	"""Forward Press"""
+
+	DbgMsg("Moving Forward...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.forward(1.0)
+
+def reverse_press(pos):
+	"""Reverse Press"""
+
+	DbgMsg("Moving In Reverse...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.forward(-1.0)
+
+def left_press(pos):
+	"""Left Press"""
+
+	DbgMsg("Turning Left...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.left_turn(-1.0)
+
+def right_press(pos):
+	"""Right Press"""
+
+	DbgMsg("Turning Right...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.right_turn()
+
+def halt_press(pos):
+	"""Halt Press"""
+
+	DbgMsg("Halting...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.halt()
+
+def servo_left(pos):
+	"""Servo Left"""
+
+	DbgMsg("Servo Left...")
+
+def servo_right(pos):
+	"""Servo Right"""
+
+	DbgMsg("Servo Right...")
+
+def servo_up(pos):
+	"""Servo Up"""
+
+	DbgMsg("Servo Up ...")
+
+def servo_down(pos):
+	"""Servo Down"""
+
+	DbgMsg("Servo Down...")
+
+def run(robot, *args, **kwargs):
+	"""Run: Robot Mode"""
+	global running
+
+	#   For
+	# L  H  R X		(motors)
+	#   Rev   LED
+	# L  U  D R		(servos)
+	bd = BlueDot(cols=4,rows=4)
+	bd[0,0].visible = bd[2,0].visible = bd[3,0].visible = False
+	bd[1,1].color = "red"
+	bd[1,1].square = True
+	bd[3,1].color = "yellow"
+	bd[0,2].visible = bd[2,2].visible = bd[3,2].visible = False
+
+	bd[1,0].when_pressed = forward_press
+	bd[1,0].square = True
+	bd[1,1].when_pressed = halt_press
+	bd[1,1].square = True
+	bd[1,2].when_pressed = reverse_press
+	bd[1,2].square = True
+	bd[0,1].when_pressed = left_press
+	bd[0,1].square = True
+	bd[2,1].when_pressed = right_press
+	bd[2,1].square = True
+
+	bd[3,1].when_pressed = exit_press
+	bd[3,2].when_pressed = led_press
+
+	bd[0,3].when_pressed = servo_left
+	bd[1,3].when_pressed = servo_up
+	bd[2,3].when_pressed = servo_down
+	bd[3,3].when_pressed = servo_right
+
+	while running:
+		pause
 
 def make_parser():
 	"""Make Parser"""
@@ -74,6 +188,10 @@ def load_config(config_file=None):
 		config_obj = configparser.ConfigParser()
 
 		config_obj.read(config_file)
+
+		if "main" in config_obj:
+			if "debugmode" in config_obj["main"]:
+				DebugMode(config_obj["main"].getboolean("debugmode",fallback=False))
 
 	return config_obj
 
