@@ -74,13 +74,29 @@ def forward_press(pos):
 
 	mc.forward(1.0)
 
+def forward_release(pos):
+	"""Forward Release"""
+
+	DbgMsg("Stopping Forward")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.halt()
+
 def reverse_press(pos):
 	"""Reverse Press"""
 
 	DbgMsg("Moving In Reverse...")
 	mc = robot.motor_controls["primary_drive"]
 
-	mc.forward(-1.0)
+	mc.reverse(1.0)
+
+def reverse_release(pos):
+	"""Reverse Release"""
+
+	DbgMsg("Stopping Reverse")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.halt()
 
 def left_press(pos):
 	"""Left Press"""
@@ -88,7 +104,15 @@ def left_press(pos):
 	DbgMsg("Turning Left...")
 	mc = robot.motor_controls["primary_drive"]
 
-	mc.left_turn(-1.0)
+	mc.left_turn(1.0)
+
+def left_release(pos):
+	"""Left Release"""
+
+	DbgMsg("Stopping Left...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.halt()
 
 def right_press(pos):
 	"""Right Press"""
@@ -96,7 +120,15 @@ def right_press(pos):
 	DbgMsg("Turning Right...")
 	mc = robot.motor_controls["primary_drive"]
 
-	mc.right_turn()
+	mc.right_turn(1.0)
+
+def right_release(pos):
+	"""Right Release"""
+
+	DbgMsg("Stopping Right...")
+	mc = robot.motor_controls["primary_drive"]
+
+	mc.halt()
 
 def halt_press(pos):
 	"""Halt Press"""
@@ -141,20 +173,35 @@ def run(robot, *args, **kwargs):
 	bd[3,1].color = "yellow"
 	bd[0,2].visible = bd[2,2].visible = bd[3,2].visible = False
 
+	# Forward
 	bd[1,0].when_pressed = forward_press
+	bd[1,0].when_released = forward_release
 	bd[1,0].square = True
+
+	# Halt
 	bd[1,1].when_pressed = halt_press
 	bd[1,1].square = True
+
+	# Reverse
 	bd[1,2].when_pressed = reverse_press
+	bd[1,2].when_released = reverse_release
 	bd[1,2].square = True
+
+	# left
 	bd[0,1].when_pressed = left_press
+	bd[0,1].when_released = left_release
 	bd[0,1].square = True
+
+	# Right
 	bd[2,1].when_pressed = right_press
+	bd[2,1].when_released = right_release
 	bd[2,1].square = True
 
+	# Exit
 	bd[3,1].when_pressed = exit_press
 	bd[3,2].when_pressed = led_press
 
+	# Servo
 	bd[0,3].when_pressed = servo_left
 	bd[1,3].when_pressed = servo_up
 	bd[2,3].when_pressed = servo_down

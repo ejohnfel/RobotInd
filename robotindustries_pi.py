@@ -346,16 +346,19 @@ class MotorController(ProductInfo):
 			else:
 				motor.set_speed(speed)
 
-	def left_turn(self, speed=0.8, percentage=0.5, duration=None, stop=False):
+	def left_turn(self, speed=0.8, percentage=0.1, duration=None, stop=False):
+
+		pspeed = speed * percentage
+
 		if self.turning_strategy == ts_tracked:
-			l_speed = speed * percentage
+			l_speed = speed - pspeed
 			r_speed = speed
 
-			self.motor_group_speed("right", r_speed, operation="turn")
-			self.motor_group_speed("left", l_speed, operation="turn")
+			self.motor_group_speed("right", r_speed, operation="left_turn")
+			self.motor_group_speed("left", l_speed - pspeed, operation="left_turn")
 		elif self.turning_strategy == ts_fixedwheels:
-			self.motor_group_speed("right", speed, operation="turn")
-			self.motor_group_speed("left", speed * -1, operation="turn")
+			self.motor_group_speed("right", speed, operation="left_turn")
+			self.motor_group_speed("left", (speed - pspeed) * -1, operation="left_turn")
 		elif self.turning_strategy == ts_steered:
 			# Turn Steering hardware left
 			pass
@@ -368,16 +371,19 @@ class MotorController(ProductInfo):
 			else:
 				self.motor_group_speed("left", r_speed)
 
-	def right_turn(self, speed=0.8, percentage=0.5, duration=None, stop=False):
+	def right_turn(self, speed=0.8, percentage=0.1, duration=None, stop=False):
+
+		pspeed = speed * percentage
+
 		if self.turning_strategy == ts_tracked:
-			r_speed = speed * percentage
+			r_speed = speed - pspeed
 			l_speed = speed
 
-			self.motor_group_speed("right", r_speed, operation="turn")
-			self.motor_group_speed("left", l_speed, operation="turn")
+			self.motor_group_speed("right", r_speed, operation="right_turn")
+			self.motor_group_speed("left", l_speed, operation="right_turn")
 		elif self.turning_strategy == ts_fixedwheels:
-			self.motor_group_speed("right", speed * -1, operation="turn")
-			self.motor_group_speed("left", speed, operation="turn")
+			self.motor_group_speed("right", (speed -pspeed) * -1, operation="right_turn")
+			self.motor_group_speed("left", speed, operation="right_turn")
 		elif self.turning_strategy == ts_steered:
 			# Turn Steering hardware right
 			pass
