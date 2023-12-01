@@ -262,7 +262,6 @@ def test(config, robot):
 	#spi = busio.SPI(board.SCLK, board.MOSI, board.MISO)
 	Msg("SPI OK!")
 
-
 if __name__ == "__main__":
 	print("Hello, Operator!")
 
