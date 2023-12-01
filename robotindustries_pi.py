@@ -28,6 +28,15 @@ import smbus
 # PI GPIO
 import pigpio
 
+# Local Instance of PiGPIO
+pig = pigpio.pi()
+pt_pi = 0
+pt_broadcom = 1
+pt_arduino = 2
+pt_other = 3
+
+pin_mappings = { }
+
 #import gpiozero as gpz
 #from gpiozero import *
 
@@ -66,29 +75,34 @@ op_declinate = "declinate"
 class ProductInfo(Taggable):
 	"""Product Info Class"""
 
+	manufacturer = ""
+	product_name = ""
 	part_number = ""
 	product_description = ""
 	product_url = ""
 	documentation = ""
+	notes = ""
 
-	def __init__(self, partnumber="", description="", url="", documentation=""):
+	def __init__(self, product_name="", partnumber="", description="", url="", documentation="", manufacturer=""):
 		"""Init Product Info Instance"""
 
 		super().__init__()
 
+		self.manufacturer = manufacturer
+		self.product_name = product_name
 		self.part_number = partnumber
 		self.product_description = description
 		self.product_url = url
 		self.documentation = documentation
 
 	def get_specs_sv(self, specs, seperator=","):
-		"""Get Device specs from one line INI as a CSV"""
+		"""Get Device specs from one line INI as a list of Separated values"""
 
 		spec_list = specs.split(seperator)
 
 		return spec_list
 
-	def get_specs_data(self, specs):
+	def get_specs_dict(self, specs):
 		"""Get device specs from one line INI as a Dictionary"""
 
 		spec_dict = dict()
@@ -105,31 +119,47 @@ class ProductInfo(Taggable):
 
 		return spec_dict
 
-	def config(self, config_section):
+	def pin_map(pin, pin_type=pt_pi):
+		"""Map Given Pin to pigpio PIN"""
+
+		return pin
+
+	def config(self, config_section, section_name=None):
 		"""Extract Product Info From INI"""
 
-		self.product_number = config_section.get("product_number", fallback="")
-		self.product_description = config_section.get("product_description", fallback="")
-		self.product_url = config_section.get("product_url", fallback="")
-		self.documentation = config_section.get("documentation", fallback="")
+		if type(config_section) is configparser.SectionProxy and section_name is not None:
+			config_section = config_section[section_name]
 
-class SimpleGPIODevice(ProductInfo):
-	"""Simple GPIO Device"""
+		self.manufacturer = config_section.get("manufacturer", fallback="No manufacturer provided")
+		self.product_name = config_section.get("product_name", fallback="No product name provided")
+		self.product_number = config_section.get("product_number", fallback="No product number provided")
+		self.product_description = config_section.get("product_description", fallback="No description provided")
+		self.product_url = config_section.get("product_url", fallback="No URL Provided")
+		self.documentation = config_section.get("documentation", fallback="No documentation provided")
+		self.notes = config_section.get("notes", fallback="No notes")
 
-	name = "simplegpiodevice"
-	description = "Simple GPIO Device"
-	pin = 0
-	pin_read = True
-	pin_write = True
+class DigitalGPIODevice(ProductInfo):
+	"""Simple DigitalGPIO Device"""
 
-	def __init__(self, name, description, pin, pin_read=True, pin_write=True, config_section=None):
-		"""Initialize Instance of Simple GPIO Device"""
+	name = "digitalgpiodevice"
+	description = "Digital GPIO Device"
+	pin = None
 
-		self.name = name
-		self.description = description
-		self.pin = pin
-		self.pin_read = pin_read
-		self.pin_write = pin_write
+	# Active pigpio Object
+	pig_object = None
+
+	def __init__(self, pig_obj, pin=None, name=None, description=None, config_section=None):
+		"""Initialize Instance of Digital GPIO Device"""
+
+		self.pig_object = pig_obj
+
+		if pin is not None:
+			self.pin = pin
+
+		if name is not None:
+			self.name = name
+		if description is not None:
+			self.description = description
 
 		if config_section is not None:
 			self.config(config_section)
@@ -139,41 +169,66 @@ class SimpleGPIODevice(ProductInfo):
 
 		value = None
 
-		if self.pin_read:
-			value = 0
+		if self.pig_obj is not None and self.pin is not None:
+			self.pig_obj.set_mode(self.pin, pigpio.INPUT)
+			value = self.pig_obj.read(self.pin)
 
 		return value
 
-	def write(self, value = None):
+	def write(self, value):
 		"""Write to PIN"""
 
-		if self.pin_write:
-			pass
+		if self.pig_obj is not None and self.pin is not None:
+			self.pig_obj.set_mode(self.pin, pigpio.OUTPUT)
+			self.pig_obj.write(self.pin, value)
 
 	def config(self, section):
 		"""Config Device from INI Section"""
 
 		self.name = section.get("name", fallback=self.name)
 		self.description = section.get("description", fallback=self.description)
+		self.pin = section.getint("pin", fallback=None)
 
-		self.pin_read = section.getboolean("pin_read", fallback=self.pin_read)
-		self.pin_write = section.getboolean("pin_write", fallback=self.pin_write)
+class I2CComm(Taggable):
+	"""I2C Bus Communications"""
+
+	address = None
+
+	def __init__(self, address):
+		"""Init I2C Comm Instance"""
+
+		super().__init__()
+
+		self.address = address
+
+class SPIComm(Taggable):
+	"""SPI Bus Device"""
+
+	def __init__(self):
+		"""Init SPI Comm Instance"""
+
+		super().__init__()
+
 
 class Motor(ProductInfo):
+	"""Motor Device"""
+
 	name = ""
 	description=""
 	motor_type = "dc"
 	polarity = 1
+	trim = 0.0
 	motor_obj = None
 	speed = 0.0
 	operations = list()
 
-	def __init__(self, name, motor, operations=None, motor_type="dc", polarity=1):
+	def __init__(self, name, motor, operations=None, motor_type="dc", polarity=1, trim=0.0):
 		self.name = name
 		self.description = ""
 		self.motor_obj = motor
 		self.motor_type = motor_type
 		self.polarity = polarity
+		self.trim = trim
 
 		if operations is not None:
 			if type(operations) is list:
@@ -184,11 +239,24 @@ class Motor(ProductInfo):
 			default_ops = [ op_forward, op_reverse ]
 			self.set_operations(default_ops)
 
+	def trimmed(self, speed):
+		"""Trim Speed"""
+
+		if speed != 0:
+			speed -= self.trim
+
+		return speed
+
 	def set_speed(self, speed=0.0):
 		"""Set Motor Speed"""
 
 		if self.motor_obj is not None:
-			self.motor_obj.throttle = self.speed = (speed * self.polarity)
+			self.motor_obj.throttle = self.speed = (self.trimmed(speed) * self.polarity)
+
+	def set_trim(self, value):
+		"""Set Trim Value"""
+
+		self.trim = value
 
 	def set_operation(self, op):
 		"""Set Valid Operations"""
@@ -220,14 +288,14 @@ class Motor(ProductInfo):
 		if "operations" in config_section:
 			config_ops = dict()
 
-			ops = config_section["operations"].split(",")
+			ops = self.get_specs_sv(config_section["operations"])
 
 			for op_name in ops:
 				if op_name in config_section:
 					if not op_name in config_ops:
 						config_ops[op_name] = list()
 
-					motor_names = config_section[op_name].split(",")
+					motor_names = self.get_specs_sv(config_section[op_name])
 
 					for motor_name in motor_names:
 						config_ops[op_name].append(motor_name)
@@ -239,11 +307,12 @@ class Motor(ProductInfo):
 
 		self.motor_type = specs["type"]
 		self.polarity = int(specs["polarity"])
+		self.trim = float(specs["trim"])
 
 	def get_motor_definition(self, motor_definition):
 		"""Get Motor Definiton and Call Correct Def Conversion"""
 
-		specs = self.get_specs_data(motor_definition)
+		specs = self.get_specs_dict(motor_definition)
 
 		if "description" in specs:
 			self.description = specs["description"]
@@ -274,7 +343,7 @@ class MotorController(ProductInfo):
 
 	name = "motorcontroller"
 	description = None
-
+	turn_differential = 0.2
 	turning_strategy = ts_fixedwheels
 
 	motors = list()
@@ -283,13 +352,14 @@ class MotorController(ProductInfo):
 
 	controller = None
 
-	def __init__(self, name, description=None, controller=None):
+	def __init__(self, name, description=None, controller=None, turn_diff=0.2):
 		"""Initialize Motor Controller Instance"""
 
 		self.name = name
 		self.description = description
 		self.controller = controller
 		self.motor_groups["all"] = self.motors
+		self.turn_differential = turn_diff
 
 	def add_group(self, group):
 		"""Add Group(s) To MotorController"""
@@ -346,19 +416,16 @@ class MotorController(ProductInfo):
 			else:
 				motor.set_speed(speed)
 
-	def left_turn(self, speed=0.8, percentage=0.1, duration=None, stop=False):
+	def left_turn(self, speed=1.0, duration=None, stop=False):
 
-		pspeed = speed * percentage
+		diff_speed = speed - self.turn_differential
 
 		if self.turning_strategy == ts_tracked:
-			l_speed = speed - pspeed
-			r_speed = speed
-
-			self.motor_group_speed("right", r_speed, operation="left_turn")
-			self.motor_group_speed("left", l_speed - pspeed, operation="left_turn")
+			self.motor_group_speed("right", speed, operation="left_turn")
+			self.motor_group_speed("left", diff_speed, operation="left_turn")
 		elif self.turning_strategy == ts_fixedwheels:
 			self.motor_group_speed("right", speed, operation="left_turn")
-			self.motor_group_speed("left", (speed - pspeed) * -1, operation="left_turn")
+			self.motor_group_speed("left", (diff_speed * -1.0), operation="left_turn")
 		elif self.turning_strategy == ts_steered:
 			# Turn Steering hardware left
 			pass
@@ -369,20 +436,17 @@ class MotorController(ProductInfo):
 			if stop:
 				self.halt()
 			else:
-				self.motor_group_speed("left", r_speed)
+				self.motor_group_speed("left", speed)
 
-	def right_turn(self, speed=0.8, percentage=0.1, duration=None, stop=False):
+	def right_turn(self, speed=1.0, duration=None, stop=False):
 
-		pspeed = speed * percentage
+		diff_speed = speed - self.turn_differential
 
 		if self.turning_strategy == ts_tracked:
-			r_speed = speed - pspeed
-			l_speed = speed
-
-			self.motor_group_speed("right", r_speed, operation="right_turn")
-			self.motor_group_speed("left", l_speed, operation="right_turn")
+			self.motor_group_speed("right", diff_speed, operation="right_turn")
+			self.motor_group_speed("left", speed, operation="right_turn")
 		elif self.turning_strategy == ts_fixedwheels:
-			self.motor_group_speed("right", (speed -pspeed) * -1, operation="right_turn")
+			self.motor_group_speed("right", (diff_speed * -1), operation="right_turn")
 			self.motor_group_speed("left", speed, operation="right_turn")
 		elif self.turning_strategy == ts_steered:
 			# Turn Steering hardware right
@@ -394,9 +458,9 @@ class MotorController(ProductInfo):
 			if stop:
 				self.halt()
 			else:
-				self.motor_group_speed("right", l_speed)
+				self.motor_group_speed("right", speed)
 
-	def forward(self, speed=0.25):
+	def forward(self, speed=0.5):
 		"""Move Robot Forward"""
 
 		if speed < 0.0:
@@ -407,7 +471,7 @@ class MotorController(ProductInfo):
 
 		self.motion(speed, operation="forward")
 
-	def reverse(self, speed=-0.25):
+	def reverse(self, speed=-0.5):
 		"""Move Robot In Reverse"""
 
 		if speed > 0.0:
@@ -442,9 +506,6 @@ class MotorController(ProductInfo):
 
 		self.turning_strategy = config_section.get("turing_strategy", fallback=ts_fixedwheels)
 
-		# Get Groups, set group memberships
-		# Get operations, set motor operations
-
 		groups = None
 		memberships = dict()
 
@@ -462,6 +523,20 @@ class MotorController(ProductInfo):
 
 		for motor in self.motors:
 			motor.config(config_section)
+
+class LED(DigitalGPIODevice):
+	"""Simple LED"""
+
+	def __init__(self, pig_obj, pin=None, name=None, description=None, config_section=None):
+		"""Initialize LED Instance"""
+
+		super().__init__(pig_obj, pin, name=name, description=description, config_section=config_section)
+
+	def on(self):
+		self.write(1)
+
+	def off(self):
+		self.write(0)
 
 class AddressableRGBILEDModule(ProductInfo):
 	"""Addressable RGBI LED Module"""
