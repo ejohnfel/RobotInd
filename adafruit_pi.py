@@ -9,12 +9,8 @@ from py_helper import DebugMode, CmdLineMode, DbgMsg, Msg, Taggable
 import spidev
 import smbus
 
-# PI GPIO
-import pigpio
-
 # GPIO Zero Stuff
-#import gpiozero as gpz
-#from gpiozero import *
+import gpiozero as gpz
 
 # Microcontroller/Board Control/Circuit Playground Stuff
 import board
@@ -46,6 +42,11 @@ class adafruit_motor_control(MotorController):
 
 		super().config(element_section)
 
+	def module_tests(self):
+		"""Module Tests"""
+
+		pass
+
 
 #
 # Functions
@@ -76,13 +77,15 @@ def adafruit_build_out(robot):
 					device_type = section["hardware"]
 
 					if device_type in my_devices:
-						if device_type == "adafruit_motor_control":
+						if device_type == my_devices[0]:
 							mc = adafruit_motor_control(section_label, description)
 							mc.config(section)
 
 							built_elements.append(mc)
 
 							robot.add(mc)
+					else:
+						pass
 				else:
 					DbgMsg("'hardware' not in section")
 			else:

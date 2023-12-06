@@ -25,11 +25,7 @@ from py_helper import DebugMode, DbgMsg, Msg, CmdLineMode, Taggable
 import spidev
 import smbus
 
-# PI GPIO
-import pigpio
-
-# Local Instance of PiGPIO
-pig = pigpio.pi()
+# Might uses these as "PIN TYPE"
 pt_pi = 0
 pt_broadcom = 1
 pt_arduino = 2
@@ -37,8 +33,7 @@ pt_other = 3
 
 pin_mappings = { }
 
-#import gpiozero as gpz
-#from gpiozero import *
+import gpiozero as gpz
 
 #
 # Definitions
@@ -68,6 +63,9 @@ op_declinate = "declinate"
 
 # Variables
 
+# SPI Control
+__spi__ = None
+
 #
 # Classes
 #
@@ -83,7 +81,7 @@ class ProductInfo(Taggable):
 	documentation = ""
 	notes = ""
 
-	def __init__(self, product_name="", partnumber="", description="", url="", documentation="", manufacturer=""):
+	def __init__(self, product_name="", partnumber="", description="", url="", documentation="", manufacturer="", config_section=None):
 		"""Init Product Info Instance"""
 
 		super().__init__()
@@ -94,6 +92,9 @@ class ProductInfo(Taggable):
 		self.product_description = description
 		self.product_url = url
 		self.documentation = documentation
+
+		if config_section is not None:
+			self.config(config_section)
 
 	def get_specs_sv(self, specs, seperator=","):
 		"""Get Device specs from one line INI as a list of Separated values"""
@@ -124,42 +125,64 @@ class ProductInfo(Taggable):
 
 		return pin
 
-	def config(self, config_section, section_name=None):
+	def config(self, config_section):
 		"""Extract Product Info From INI"""
 
-		if type(config_section) is configparser.SectionProxy and section_name is not None:
-			config_section = config_section[section_name]
+		if "manufacturer" in config_section:
+			self.manufacturer = config_section.get("manufacturer", fallback="No manufacturer provided")
+		if "product_name" in config_section:
+			self.product_name = config_section.get("product_name", fallback="No product name provided")
+		if "product_number" in config_section:
+			self.product_number = config_section.get("product_number", fallback="No product number provided")
+		if "product_description" in config_section:
+			self.product_description = config_section.get("product_description", fallback="No description provided")
+		if "product_url" in config_section:
+			self.product_url = config_section.get("product_url", fallback="No URL Provided")
+		if "documentation" in config_section:
+			self.documentation = config_section.get("documentation", fallback="No documentation provided")
+		if "notes" in config_section:
+			self.notes = config_section.get("notes", fallback="No notes")
 
-		self.manufacturer = config_section.get("manufacturer", fallback="No manufacturer provided")
-		self.product_name = config_section.get("product_name", fallback="No product name provided")
-		self.product_number = config_section.get("product_number", fallback="No product number provided")
-		self.product_description = config_section.get("product_description", fallback="No description provided")
-		self.product_url = config_section.get("product_url", fallback="No URL Provided")
-		self.documentation = config_section.get("documentation", fallback="No documentation provided")
-		self.notes = config_section.get("notes", fallback="No notes")
+class DeviceInfo(ProductInfo):
+	"""Device Information"""
 
-class DigitalGPIODevice(ProductInfo):
+	name = None
+	description = None
+
+	def __init__(self, name="device", description="no description", config_section=None):
+		"""Init DeviceInfo Instance"""
+
+		super("ProductInfo",self).__init__(config_section)
+
+		if name is not None:
+			self.name = name
+
+		if description is not None:
+			self.description = description
+
+		self.config(config_section)
+
+	def config(self, config_section):
+		"""Config Instance"""
+
+		if "name" in config_section:
+			self.name = config_section["name"]
+
+		if "description" in config_section:
+			self.name = config_section["description"]
+
+class DigitalGPIODevice(DeviceInfo):
 	"""Simple DigitalGPIO Device"""
 
-	name = "digitalgpiodevice"
-	description = "Digital GPIO Device"
 	pin = None
 
-	# Active pigpio Object
-	pig_object = None
-
-	def __init__(self, pig_obj, pin=None, name=None, description=None, config_section=None):
+	def __init__(self, pin=None, name=None, description=None, config_section=None):
 		"""Initialize Instance of Digital GPIO Device"""
-
-		self.pig_object = pig_obj
 
 		if pin is not None:
 			self.pin = pin
 
-		if name is not None:
-			self.name = name
-		if description is not None:
-			self.description = description
+		super(DeviceInfo,self).__init__(name, description, config_section=config_section)
 
 		if config_section is not None:
 			self.config(config_section)
@@ -169,27 +192,32 @@ class DigitalGPIODevice(ProductInfo):
 
 		value = None
 
-		if self.pig_obj is not None and self.pin is not None:
-			self.pig_obj.set_mode(self.pin, pigpio.INPUT)
-			value = self.pig_obj.read(self.pin)
+		# TODO : convert to gpiozero
+
+		#if self.pig_obj is not None and self.pin is not None:
+		#	self.pig_obj.set_mode(self.pin, pigpio.INPUT)
+		#	value = self.pig_obj.read(self.pin)
 
 		return value
 
 	def write(self, value):
 		"""Write to PIN"""
 
-		if self.pig_obj is not None and self.pin is not None:
-			self.pig_obj.set_mode(self.pin, pigpio.OUTPUT)
-			self.pig_obj.write(self.pin, value)
+		# TODO : Convert to gpiozero
 
-	def config(self, section):
+		#if self.pig_obj is not None and self.pin is not None:
+		#	self.pig_obj.set_mode(self.pin, pigpio.OUTPUT)
+		#	self.pig_obj.write(self.pin, value)
+
+		pass
+
+	def config(self, config_section):
 		"""Config Device from INI Section"""
 
-		self.name = section.get("name", fallback=self.name)
-		self.description = section.get("description", fallback=self.description)
-		self.pin = section.getint("pin", fallback=None)
+		if "pin" in config_section:
+			self.pin = config_section.getint("pin", fallback=None)
 
-class I2CComm(Taggable):
+class I2CDevice():
 	"""I2C Bus Communications"""
 
 	address = None
@@ -197,24 +225,179 @@ class I2CComm(Taggable):
 	def __init__(self, address):
 		"""Init I2C Comm Instance"""
 
-		super().__init__()
-
 		self.address = address
 
-class SPIComm(Taggable):
+class SPIDevice():
 	"""SPI Bus Device"""
 
-	def __init__(self):
+	__spi__ = None
+	bus = 0
+	device = 0
+	bus_speed = 500000
+
+	def __init__(self, bus=0, device=0, bus_speed=500000, config_section=None):
 		"""Init SPI Comm Instance"""
 
-		super().__init__()
+		self.bus = bus
+		self.device = device
+		self.__spi__ = spidev.SpiDev()
+		self.set_bus_speed(bus_speed)
 
+		if config_section is not None:
+			self.config(config_section)
 
-class Motor(ProductInfo):
+	def set_bus_speed(self, speed):
+		"""Set Bus Speed"""
+
+		self.bus_speed = speed
+
+		self.__spi__.max_speed_hertz = self.bus_speed
+
+	def config(self, config_section):
+		"""Config Instance"""
+
+		if "spi_bus" in config_section:
+			self.bus = config_section.getint("spi_bus", fallback=0)
+
+		if "spi_device" in config_section:
+			self.device = config_section.getint("spi_device", fallback=0)
+
+		if "spi_bus_speed" in config_section:
+			self.set_bus_speed(config_section.get("spi_bus_speed", fallback=500000))
+
+	def open(self):
+		"""Open SPI Bus"""
+
+		self.__spi__.open(self.bus, self.device)
+
+	def readbytes(self,length):
+		"""Read Bytes Wrapper"""
+
+		return self.__spi__.readbytes(length)
+
+	def writebytes(self, values):
+		"""Write Bytes SPI Wrapper"""
+
+		self.__spi__.writebytes(values)
+
+	def writebytes2(self, values):
+		"""Write Bytes SPI Wrapper"""
+
+		self.__spi__.writebytes2(values)
+
+	def xfer(self, values, speed=None, delay=None, bits=None):
+		"""XFer Data Wrapper"""
+
+		rcvd = self.__spi__.xfer(values, speed, delay, bits)
+
+		return rcvd
+
+	def xfer2(self, values, speed=None, delay=None, bits=None):
+		"""XFer 2 Wrapper"""
+
+		rcvd = self.__spi__.xfer2(values, speed, delay, bits)
+
+		return rcvd
+
+	def xfer3(self, values, speed=None, delay=None, bits=None):
+		"""XFer 3 Wrapper"""
+
+		rcvd = self.__spi__.xfer3(values, speed, delay, bits)
+
+		return rcvd
+
+	def close(self):
+		"""Close SPI Bus"""
+
+		self.__spi__.close()
+
+	@property
+	def threewire(self):
+		"""Threewire wrapper"""
+
+		return self.__spi__.threewire
+
+	@threewire.setter
+	def threewire(self, value):
+		"""Threewire wrapper Setter"""
+
+		self.__spi__.threewire = value
+
+	@property
+	def mode(self):
+		"""Mode Wrapper"""
+
+		return self.__spi__.mode
+
+	@mode.setter
+	def mode(self, value):
+		"""Mode Wrapper Setter"""
+
+		self.__spi__.mode = value
+
+	@property
+	def max_speed_hz(self):
+		"""Max Speed Hz Wrapper"""
+
+		return self.__spi__.max_speed_hz
+
+	@max_speed_hz.setter
+	def max_speed_hz(self, value):
+		"""Max Speed Hz Wrapper Setter"""
+
+		self.__spi__.max_speed_hz = value
+
+	@property
+	def lsbfirst(self):
+		"""LSB First Wrapper"""
+
+		return self.__spi__.lsbfirst
+
+	@lsbfirst.setter
+	def lsbfirst(self, value):
+		"""LSB First Wrapper Setter"""
+
+		self.__spi__.lsbfirst = value
+
+	@property
+	def loop(self):
+		"""Loop Wrapper"""
+
+		return self.__spi__.loop
+
+	@loop.setter
+	def loop(self, value):
+		"""Loop Wrapper Setter"""
+
+		self.__spi__.loop = value
+
+	@property
+	def cshigh(self):
+		"""CS High Wrapper"""
+
+		return self.__spi__.cshigh
+
+	@cshigh.setter
+	def cshigh(self, value):
+		"""CSHigh Wrapper Setter"""
+
+		self.__spi__.cshigh = value
+
+	@property
+	def bits_per_word(self):
+		"""Bits Per Word Wrapper"""
+
+		return self.__spi__.bits_per_word
+
+	@bits_per_word.setter
+	def bits_per_word(self, value):
+		"""Bits Per Word Wrapper Setter"""
+
+		self.__spi__.bits_per_word = value
+
+class Motor(DeviceInfo):
 	"""Motor Device"""
 
-	name = ""
-	description=""
 	motor_type = "dc"
 	polarity = 1
 	trim = 0.0
@@ -222,13 +405,18 @@ class Motor(ProductInfo):
 	speed = 0.0
 	operations = list()
 
-	def __init__(self, name, motor, operations=None, motor_type="dc", polarity=1, trim=0.0):
-		self.name = name
-		self.description = ""
+	def __init__(self, name=None, description=None, motor=None, operations=None, motor_type="dc", polarity=1, trim=0.0, config_section=None):
+		if name is not None:
+			self.name = name
+		if description is not None:
+			self.description = description
+
 		self.motor_obj = motor
 		self.motor_type = motor_type
 		self.polarity = polarity
 		self.trim = trim
+
+		super(DeviceInfo,self).__init__(config_section=config_section)
 
 		if operations is not None:
 			if type(operations) is list:
@@ -238,6 +426,9 @@ class Motor(ProductInfo):
 		else:
 			default_ops = [ op_forward, op_reverse ]
 			self.set_operations(default_ops)
+
+		if config_section is not None:
+			self.config(config_section)
 
 	def trimmed(self, speed):
 		"""Trim Speed"""
@@ -338,11 +529,9 @@ class Motor(ProductInfo):
 			ops = self.get_motor_operations_from_config(config_section)
 			self.get_operations_for_motor(ops)
 
-class MotorController(ProductInfo):
+class MotorController(DeviceInfo):
 	"""Motor Controller"""
 
-	name = "motorcontroller"
-	description = None
 	turn_differential = 0.2
 	turning_strategy = ts_fixedwheels
 
@@ -352,14 +541,20 @@ class MotorController(ProductInfo):
 
 	controller = None
 
-	def __init__(self, name, description=None, controller=None, turn_diff=0.2):
+	def __init__(self, name=None, description=None, controller=None, turn_diff=0.2, config_section=None):
 		"""Initialize Motor Controller Instance"""
 
-		self.name = name
-		self.description = description
+		if name is not None:
+			self.name = name
+		if description is not None:
+			self.description = description
+
 		self.controller = controller
 		self.motor_groups["all"] = self.motors
 		self.turn_differential = turn_diff
+
+		if config_section is not None:
+			self.config(config_section)
 
 	def add_group(self, group):
 		"""Add Group(s) To MotorController"""
@@ -504,7 +699,7 @@ class MotorController(ProductInfo):
 	def config(self, config_section):
 		"""Config Motor Controller"""
 
-		self.turning_strategy = config_section.get("turing_strategy", fallback=ts_fixedwheels)
+		self.turning_strategy = config_section.get("turning_strategy", fallback=ts_fixedwheels)
 
 		groups = None
 		memberships = dict()
@@ -530,7 +725,7 @@ class LED(DigitalGPIODevice):
 	def __init__(self, pig_obj, pin=None, name=None, description=None, config_section=None):
 		"""Initialize LED Instance"""
 
-		super().__init__(pig_obj, pin, name=name, description=description, config_section=config_section)
+		super().__init__(pin, name=name, description=description, config_section=config_section)
 
 	def on(self):
 		self.write(1)
@@ -538,107 +733,8 @@ class LED(DigitalGPIODevice):
 	def off(self):
 		self.write(0)
 
-class AddressableRGBILEDModule(ProductInfo):
-	"""Addressable RGBI LED Module"""
-
-	name = "AddressableRGBILEDModule"
-	description = "Addressable RGBI LED Module"
-	color_range = (0, 255)
-	intensity_range = (0,31)
-	leds = None
-
-	def __init__(self, name, description, config_section=None):
-		"""Initialize Led Module Instance"""
-
-		self.name = name
-		self.description = description
-
-		if config_section is not None:
-			self.config(config_section)
-
-	def within_range(self, value, value_range):
-		"""Check to see if Value is within Range"""
-
-		if value < value_range[0]:
-			value = value_range[0]
-
-		if value > value_range[1]:
-			value = value_range[1]
-
-		return value
-
-	def SetColor(self, num, r, g, b):
-		"""Set LED Color"""
-
-		self.leds[num][0] = self.within(r, self.color_range)
-		self.leds[num][1] = self.within(g, self.color_range)
-		self.leds[num][2] = self.within(b, self.color_range)
-
-	def SetColorRGB(self, num, rgb):
-		"""Set Color By RGB Triple"""
-
-		r,g,b = rgb
-
-		self.SetColor(num, r, g, b)
-
-	def SetAllColor(self, r, g, b):
-		"""Set All LEDs to One Color"""
-
-		for num in range(0,len(self.leds)):
-			self.SetColor(r, g, b)
-
-	def SetAllColorRGB(self, rgb):
-		"""Set All LEDs to One Color RGB"""
-
-		r,g,b = rgb
-
-		self.SetAllColor(r, g, b)
-
-	def SetIntensity(self, num, intensity):
-		"""Set LED Intensity/Brightness"""
-
-		self.leds[num][3] = self.within(intensity, self.intensity_range)
-
-	def SetAllIntensity(self, intensity):
-		"""Set all LEDs to one Intensity/Brightness"""
-
-		for num in range(0,len(self.leds)):
-			self.SetIntensity(num, intensity)
-
-	def SetLed(self, num, r, g, b, intensity):
-		"""Set LED Color and Intensity"""
-
-		self.SetColor(num, r, g, b)
-		self.SetIntensity(num, intensity)
-
-	def SetLedRGB(self, num, rgb, intensity):
-		"""Set LED Color by RGB Tuple and Intensity/Brightness"""
-
-		r,g,b = rgb
-
-		self.SetColor(num, r, g, b)
-		self.SetIntensity(num, intensity)
-
-	def SetAll(self, r, g, b, intensity):
-		"""Set All LED's To The Same Color and Intensity/Brightness"""
-
-		for num in range(0,len(self.leds)):
-			self.SetLed(num, r, g, b, intensity)
-
-	def SetAllRGB(self, rgb, intensity):
-		"""Set ALl LED's to The Same RGB Color and Intensity/Brightness"""
-
-		r,g,b = rgb
-
-		self.SetAll(r, g, b, intensity)
-
-	def WriteLEDs(self):
-		"""Write Out LED Data"""
-
-		pass
-
-	def config(self,config_section):
-		"""Config Device From INI Section"""
+	def config(self, config_section):
+		"""Config Instance"""
 
 		pass
 

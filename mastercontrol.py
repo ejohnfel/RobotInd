@@ -35,6 +35,9 @@ from robotindustries_pi import *
 import adafruit_pi as ap
 from adafruit_pi import adafruit_motor_control
 
+import sparkfun_pi as sfp
+from sparkfun_pi import SparkfunLumenati3x3
+
 #
 # Variables
 #
@@ -64,7 +67,12 @@ def exit_press(pos):
 def led_press(pos):
 	"""LED Toggle"""
 
-	pass
+	panel = robot.features["sparkfunlumenati3x3"]
+
+	if panel.is_on:
+		panel.off()
+	else:
+		panel.on()
 
 def forward_press(pos):
 	"""Forward Press"""
@@ -282,6 +290,7 @@ if __name__ == "__main__":
 	robot = Robot(config_info=config,run=run)
 
 	built_elements = ap.adafruit_build_out(robot)
+	built_elements.extend(sfp.sparkfun_build_out(robot))
 
 	if args.test:
 		test(config, robot)
